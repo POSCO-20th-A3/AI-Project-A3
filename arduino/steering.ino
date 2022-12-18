@@ -4,9 +4,9 @@
 #include "MPU9250.h"
 
 float current_lat = 36.0096155555; // 현재 위도
-float current_lon = 129.32257555555; // 현재 경도
-float target_lat = 36.0096155555; // 현재 위도
-float target_lon = 129.32257555555; // 현재 경도
+float current_lon = 129.3225755555; // 현재 경도
+float target_lat = 36.0106455555; // 목표 위도
+float target_lon = 129.3229755555; // 목표 경도
 
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
@@ -86,6 +86,7 @@ void setup()
     Mxyz_init_calibrated (); // 초기 보정 실시
 }
 
+int target_angle;
 
 void loop()
 { 
@@ -97,21 +98,17 @@ void loop()
   Serial.println("calibration parameter: ");
   Serial.print(mx_centre);
   Serial.print("         ");
-  Serial.print(my_centre);
-  Serial.print("         ");
-  Serial.println(mz_centre);
-  Serial.println("     ");
-  Serial.println("Compass Value of X,Y,Z:");
-  Serial.print(Mxyz[0]);
-  Serial.print(",");
-  Serial.print(Mxyz[1]);
-  Serial.print(",");
-  Serial.println(Mxyz[2]);
+  Serial.println(my_centre);
+  Serial.println("         ");
   Serial.println("The clockwise angle between the magnetic north and X-Axis:");
   Serial.print(heading);
   Serial.println(" ");
-  delay(1000);
-  
+
+  int angle = get_angle(current_lat, current_lon, target_lat, target_lon);
+  move_azimuth_angle(angle);
+  target_angle = angle;
+
+  delay(1000); 
 }
 float get_angle(float start_lat, float start_lon, float end_lat, float end_lon) // 경도 위도 두점 간의 각도 계산
 {
@@ -119,7 +116,7 @@ float get_angle(float start_lat, float start_lon, float end_lat, float end_lon) 
   float deg_lon = end_lon - start_lon;
   float dist_lat = deg_lat * distance_lat_deg * 1000.0;
   float dist_lon = deg_lon * distance_lon_deg * 1000.0;
-  float angle = atan2(dist_lon, dist_lat) * 180.0 / 3.141592654;
+  float angle = atan2(dist_lon, dist_lat) * 180.0 / PI;
   return angle;
 }
 
@@ -127,7 +124,7 @@ float get_my_angle(void)
 {//방향 계산
     heading = -(180 * atan2(Mxyz[1], Mxyz[0]) / PI);
     if (heading < 0) heading += 360;
-    return heading
+    return heading;
 }
 
 void getHeading(void)
@@ -157,15 +154,8 @@ void get_calibration_Data ()
 {   
   for (int i = 0; i < sample_num_mdate; i++)
   {//보정 값 측정을 위해 좌회전
-    analogWrite(9, 255);
-    digitalWrite(8, LOW);
-    digitalWrite(7, HIGH);
-    analogWrite(6, 255);
-    digitalWrite(4, HIGH);
-    digitalWrite(2, LOW);
-
+    turn_left(255);
     getCompass_Data();//지자계 측정치 불러오기
-    
     if ( Mxyz[0] > mx_max )
     {
       mx_max = Mxyz[0];
@@ -184,12 +174,7 @@ void get_calibration_Data ()
     }
   }
   //보정이 끝나면 정지
-  analogWrite(9, 0);
-  digitalWrite(8, HIGH);
-  digitalWrite(7, LOW);
-  analogWrite(6, 0);
-  digitalWrite(4, HIGH);
-  digitalWrite(2, LOW);
+  stop();
 
   mx_centre = (mx_max + mx_min) / 2;
   my_centre = (my_max + my_min) / 2;
@@ -236,7 +221,6 @@ void move_azimuth_angle(int target) // 차량을 목표 방위각으로 회전
   {
     target += 360;
   }
-
   while (1)
   {
     float sum_angle = 0;
@@ -261,36 +245,44 @@ void move_azimuth_angle(int target) // 차량을 목표 방위각으로 회전
     if ( fabs(deviation) < ALLOW_DEVIATION )
     {
       Serial.println("OK");
-      left_front(0);
-      right_front(0);
+      stop();
       return;
     }
 
     if ( deviation  > ALLOW_DEVIATION )
     {
-      turn_right();
+      turn_right(100);
     }
     if ( deviation < -ALLOW_DEVIATION )
     {
-      turn_left();
+      turn_left(100);
     }
   }
 }
 
-void turn_right(){//우회전
+void turn_right(int pwm){//우회전
   analogWrite(9, 255);
   digitalWrite(8, HIGH);
   digitalWrite(7, LOW);
-  analogWrite(6, 100);
+  analogWrite(6, pwm);
   digitalWrite(4, HIGH);
   digitalWrite(2, LOW);
 }
 
-void turn_left(){//좌회전
+void turn_left(int pwm){//좌회전
   analogWrite(9, 255);
   digitalWrite(8, LOW);
   digitalWrite(7, HIGH);
-  analogWrite(6, 100);
+  analogWrite(6, pwm);
+  digitalWrite(4, HIGH);
+  digitalWrite(2, LOW);
+}
+
+void stop(){//정지
+  analogWrite(9, 0);
+  digitalWrite(8, LOW);
+  digitalWrite(7, HIGH);
+  analogWrite(6, 0);
   digitalWrite(4, HIGH);
   digitalWrite(2, LOW);
 }
