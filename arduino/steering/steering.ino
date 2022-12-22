@@ -1,12 +1,11 @@
 #include "Wire.h"
-
 #include "I2Cdev.h"
 #include "MPU9250.h"
 
 float current_lat = 36.0096155555; // 현재 위도
 float current_lon = 129.3225755555; // 현재 경도
-float target_lat = 36.0106455555; // 목표 위도
-float target_lon = 129.3229755555; // 목표 경도
+float target_lat = 36.0106455555; // 목표 위도 타켓 조정 필요 
+float target_lon = 129.3229755555; // 목표 경도 타켓 조정 필요 
 
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
@@ -15,8 +14,6 @@ float target_lon = 129.3229755555; // 목표 경도
 MPU9250 accelgyro;
 I2Cdev   I2C_M;
 
-void getAccel_Data(void);
-void getGyro_Data(void);
 void getCompass_Data(void);
 void getCompassDate_calibrated ();
 
@@ -42,8 +39,6 @@ float distance_lon_deg = 81.8; // 경도 1도의 거리
 float heading;
 float tiltheading;
 
-float Axyz[3];
-float Gxyz[3];
 float Mxyz[3];
 
 #define sample_num_mdate  5000
@@ -64,15 +59,8 @@ float altitude;
 void setup()
 {
     Wire.begin();
-    Serial.begin(38400);                        // 통신속도 38400 bps
-
-    Serial.println("Initializing I2C devices...");
-    accelgyro.initialize();
-
+    Serial.begin(9600);                        
     // verify connection
-    Serial.println("Testing device connections...");
-    Serial.println(accelgyro.testConnection() ? "MPU9250 connection successful" : "MPU9250 connection failed");
-    //조향모터 연결
     pinMode(9, OUTPUT);//PWM
     pinMode(8, OUTPUT);
     pinMode(7, OUTPUT);
@@ -87,27 +75,15 @@ void setup()
 }
 
 int target_angle;
-
 void loop()
 { 
-  getAccel_Data();
-  getGyro_Data();
+ 
   getCompassDate_calibrated(); // compass data has been calibrated here
-  getHeading();               //before we use this function we should run 'getCompassDate_calibrated()' frist, so that we can get calibrated data ,then we can get correct angle .
-  
-  Serial.println("calibration parameter: ");
-  Serial.print(mx_centre);
-  Serial.print("         ");
-  Serial.println(my_centre);
-  Serial.println("         ");
-  Serial.println("The clockwise angle between the magnetic north and X-Axis:");
-  Serial.print(heading);
-  Serial.println(" ");
-
   int angle = get_angle(current_lat, current_lon, target_lat, target_lon);
-  move_azimuth_angle(angle);
-  target_angle = angle;
+  //move_azimuth_angle(angle);
+  Serial.println(angle);
 
+  
   delay(1000); 
 }
 float get_angle(float start_lat, float start_lon, float end_lat, float end_lon) // 경도 위도 두점 간의 각도 계산
@@ -127,11 +103,11 @@ float get_my_angle(void)
     return heading;
 }
 
-void getHeading(void)
-{//방향 계산
-    heading = -(180 * atan2(Mxyz[1], Mxyz[0]) / PI);
-    if (heading < 0) heading += 360;
-}
+// void getHeading(void)
+// {//방향 계산
+//     heading = -(180 * atan2(Mxyz[1], Mxyz[0]) / PI);
+//     if (heading < 0) heading += 360;
+// }
 
 void Mxyz_init_calibrated () //초기 보정 
 {
@@ -180,20 +156,6 @@ void get_calibration_Data ()
   my_centre = (my_max + my_min) / 2;
   mz_centre = (mz_max + mz_min) / 2;
 }
-void getAccel_Data(void)
-{//가속도 데이터 측정
-    accelgyro.getMotion9(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
-    Axyz[0] = (double) ax / 16384;
-    Axyz[1] = (double) ay / 16384;
-    Axyz[2] = (double) az / 16384;
-}
-void getGyro_Data(void)
-{//자이로 데이터 측정
-    accelgyro.getMotion9(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
-    Gxyz[0] = (double) gx * 250 / 32768;
-    Gxyz[1] = (double) gy * 250 / 32768;
-    Gxyz[2] = (double) gz * 250 / 32768;
-}
 void getCompass_Data(void)
 {//지자계 데이터 측정
   accelgyro.getMotion9(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
@@ -211,7 +173,7 @@ void getCompassDate_calibrated ()
 
 #define ALLOW_DEVIATION 5
 #define REPEAT_NO 10
-void move_azimuth_angle(int target) // 차량을 목표 방위각으로 회전
+void move_azimuth_angle(int target) // target => 출발점부터 목표점까지 각도 
 {
   while (target > 180)
   {
